@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Consumo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .container {
+            max-width: 960px;
+        }
+        .card {
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 24px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #4b5563;
+        }
+        .input-group input {
+            margin-top: 0.25rem;
+            display: block;
+            width: 100%;
+            border-radius: 0.375rem;
+            border-color: #d1d5db;
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            z-index: 1000;
+        }
+        .form-container {
+            display: none;
+        }
+        .custom-alert {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            z-index: 1001;
+            max-width: 400px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div id="loading" class="loading-overlay hidden">
+        <svg class="animate-spin h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p class="mt-4 text-gray-700">Cargando...</p>
+    </div>
+    
+    <!-- Custom Alert/Modal -->
+    <div id="custom-alert-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3 text-center">
+                <h3 class="text-lg leading-6 font-medium text-gray-900" id="alert-title"></h3>
+                <div class="mt-2 px-7 py-3">
+                    <p class="text-sm text-gray-500" id="alert-message"></p>
+                </div>
+                <div class="items-center px-4 py-3">
+                    <button id="alert-ok-btn" class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        Aceptar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto p-4 flex flex-col items-center">
+        <!-- Título de la App -->
+        <h1 class="text-3xl sm:text-4xl font-bold text-gray-800 mb-6 text-center">Medidor de Consumo</h1>
+        <div id="authStatus" class="w-full flex justify-between items-center text-sm font-semibold text-gray-600 mb-4">
+            Estado de autenticación: <span id="userNameDisplay" class="font-normal text-blue-600 truncate">Cargando...</span>
+            <button id="signOutBtn" class="bg-red-500 hover:bg-red-600 text-white font-medium py-1 px-2 text-xs rounded-md shadow transition-colors ml-4 hidden">Cerrar sesión</button>
+        </div>
+
+        <!-- Vista de Autenticación -->
+        <div id="authView" class="w-full card max-w-md hidden">
+            <!-- Sección de selección inicial -->
+            <div id="selection-section">
+                <p class="text-lg text-center text-gray-600 mb-6">Elige una opción para continuar:</p>
+                <div class="flex flex-col space-y-4">
+                    <button id="googleSignInBtn" class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 flex items-center justify-center space-x-2">
+                        <svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M22.675 12.012c0-.783-.07-.13-.195-1.229H12.02v2.306h6.074c-.266 1.488-1.554 3.753-4.484 3.753-2.684 0-5.01-2.126-5.01-5.01s2.326-5.01 5.01-5.01c1.55 0 2.87.66 3.89 1.63L19.26 6.84c-1.39-1.332-3.21-2.15-5.26-2.15-4.55 0-8.25 3.7-8.25 8.25s3.7 8.25 8.25 8.25c4.76 0 7.9-3.22 7.9-8.082 0-.495-.045-.968-.118-1.428z"/>
+                            <path d="M4.615 13.918c-.08-.475-.123-.974-.123-1.48s.043-1.005.123-1.48l-2.05-.126c-.45.986-.705 2.1-.705 3.236s.255 2.25.705 3.236L4.615 13.92z"/>
+                            <path d="M12.02 21.01c2.193 0 4.14-1.2 5.17-3.03l-2.89-2.22c-.8.56-1.81.89-2.92.89-2.455 0-4.53-1.88-5.18-4.4L1.76 17.65c1.07 1.83 2.96 3.12 5.16 3.53l5.1-4.71z"/>
+                            <path d="M20.25 10.04c.118-1.432-.016-2.585-.195-3.56L18.06 4.31c1.39 1.33 2.15 3.21 2.15 5.26 0 1.94-.585 3.75-1.59 5.28l-2.31-1.78c.45-.66.86-1.58.86-3.15z"/>
+                        </svg>
+                        <span>Iniciar sesión con Google</span>
+                    </button>
+                    <button id="existing-btn" class="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-xl shadow-md hover:bg-blue-700 transition duration-300">
+                        Usar cuenta existente
+                    </button>
+                    <button id="new-btn" class="w-full bg-green-600 text-white font-semibold py-3 px-6 rounded-xl shadow-md hover:bg-green-700 transition duration-300">
+                        Crear una nueva cuenta
+                    </button>
+                </div>
+            </div>
+
+            <!-- Formulario para cuenta existente (inicialmente oculto) -->
+            <div id="existing-form" class="form-container">
+                <h2 class="text-2xl font-bold text-center text-gray-700 mb-6">Iniciar Sesión</h2>
+                <form id="existing-account-form" class="space-y-4">
+                    <div>
+                        <label for="existing-email" class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+                        <input type="email" id="existing-email" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="existing-password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+                        <input type="password" id="existing-password" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <button type="submit" class="w-full bg-blue-600 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-blue-700 transition duration-300">
+                        Ingresar
+                    </button>
+                </form>
+                <button id="back-to-selection-1" class="w-full mt-4 text-sm text-gray-500 hover:text-gray-700">← Volver</button>
+            </div>
+
+            <!-- Formulario para nueva cuenta (inicialmente oculto) -->
+            <div id="new-form" class="form-container">
+                <h2 class="text-2xl font-bold text-center text-gray-700 mb-6">Crear Cuenta</h2>
+                <form id="new-account-form" class="space-y-4">
+                    <div>
+                        <label for="new-email" class="block text-sm font-medium text-gray-700">Correo Electrónico</label>
+                        <input type="email" id="new-email" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label for="new-password" class="block text-sm font-medium text-gray-700">Contraseña</label>
+                        <input type="password" id="new-password" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <div>
+                        <label for="confirm-password" class="block text-sm font-medium text-gray-700">Confirmar Contraseña</label>
+                        <input type="password" id="confirm-password" class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-green-500 focus:border-green-500">
+                    </div>
+                    <button type="submit" class="w-full bg-green-600 text-white font-semibold py-2 rounded-lg shadow-md hover:bg-green-700 transition duration-300">
+                        Crear Cuenta
+                    </button>
+                </form>
+                <button id="back-to-selection-2" class="w-full mt-4 text-sm text-gray-500 hover:text-gray-700">← Volver</button>
+            </div>
+            <p id="authMessage" class="mt-4 text-center text-sm font-medium text-red-600 hidden"></p>
+        </div>
+        
+        <!-- Contenedor principal de la app (oculto por defecto) -->
+        <div id="mainApp" class="w-full hidden">
+            <!-- Formulario del medidor principal -->
+            <div id="mainFormView" class="w-full card mb-8">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Registro de Consumo Mensual</h2>
+                <div class="bg-gray-50 rounded-lg p-4 mb-4">
+                    <h3 class="font-semibold text-gray-600">Última Lectura Registrada</h3>
+                    <p id="lastReadingDisplay" class="text-2xl font-bold text-gray-800 mt-2">No hay datos</p>
+                </div>
+                <form id="consumptionForm">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div class="input-group">
+                            <label for="meterDate">Fecha de Lectura</label>
+                            <input type="date" id="meterDate" name="meterDate" class="focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-sm border-gray-300" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="principalMeter">Lectura Medidor Principal (kWh)</label>
+                            <input type="number" id="principalMeter" name="principalMeter" step="0.01" class="focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-sm border-gray-300" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="totalBillKwh">Total kWh de la Boleta</label>
+                            <input type="number" id="totalBillKwh" name="totalBillKwh" step="0.01" class="focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-sm border-gray-300" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="totalBillCost">Total a Pagar de la Boleta ($)</label>
+                            <input type="number" id="totalBillCost" name="totalBillCost" step="0.01" class="focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-sm border-gray-300" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="costPerKwh">Costo por kWh ($)</label>
+                            <input type="number" id="costPerKwh" name="costPerKwh" step="0.01" class="focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-sm border-gray-300" required>
+                        </div>
+                    </div>
+
+                    <!-- Submedidores -->
+                    <div class="flex items-center justify-between mb-4 mt-6">
+                        <h3 class="text-lg font-semibold text-gray-700">Lecturas de Submedidores</h3>
+                        <button id="addSubmeterBtn" type="button" class="px-3 py-1 text-sm bg-indigo-500 text-white rounded-md hover:bg-indigo-600 transition-colors">+ Agregar</button>
+                    </div>
+                    <div id="submeterContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    </div>
+
+                    <!-- Botón para guardar -->
+                    <div class="mt-8 flex justify-end">
+                        <button type="submit" class="w-full px-4 py-2 bg-indigo-600 text-white font-medium rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">Guardar Lecturas</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Resultados de los cálculos -->
+            <div id="resultsView" class="w-full card">
+                <h2 class="text-xl font-semibold text-gray-700 mb-4">Resultados de Cálculos</h2>
+                <div id="results" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-600">Consumo Principal del Mes</h3>
+                        <p id="principalMonthlyConsumption" class="text-3xl font-bold text-gray-800 mt-2">0 kWh</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-600">Costo Estimado Principal</h3>
+                        <p id="principalTotalCost" class="text-3xl font-bold text-gray-800 mt-2">$0.00</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-600">Total de Submedidores</h3>
+                        <p id="totalSubmeters" class="text-3xl font-bold text-indigo-600 mt-2">0 kWh</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-600">Costo Distribuido Estimado</h3>
+                        <p id="totalSubmetersCost" class="text-3xl font-bold text-indigo-600 mt-2">$0.00</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-600">Diferencia kWh (Boleta vs Submedidores)</h3>
+                        <p id="totalDifferenceKwh" class="text-3xl font-bold text-red-600 mt-2">0 kWh</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-600">Diferencia Costo (Boleta vs Submedidores)</h3>
+                        <p id="totalDifferenceCost" class="text-3xl font-bold text-red-600 mt-2">$0.00</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h3 class="font-semibold text-gray-600">Costo Adicional por Submedidor</h3>
+                        <p id="additionalCostPerMeter" class="text-3xl font-bold text-red-600 mt-2">$0.00</p>
+                    </div>
+                </div>
+
+                <!-- Detalle de Submedidores -->
+                <div id="submeterCostDetails" class="mt-8">
+                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Resumen de Pagos por Submedidor</h3>
+                    <div id="submeterCostContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    </div>
+                </div>
+
+                <div class="mt-8 flex justify-end space-x-4">
+                    <button id="viewHistoryBtn" class="w-full px-4 py-2 bg-gray-600 text-white font-medium rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">Ver Historial</button>
+                    <button id="exportCsvBtn" class="w-full px-4 py-2 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">Descargar CSV</button>
+                </div>
+            </div>
+
+            <!-- Historial de Consumo (oculto por defecto) -->
+            <div id="historyView" class="hidden w-full card">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl font-semibold text-gray-700">Historial de Consumo</h2>
+                    <button id="backToFormBtn" class="px-3 py-1 text-sm bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors">Volver</button>
+                </div>
+                <div id="historyList" class="space-y-4">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts de la aplicación -->
+    <script type="module">
+        import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { 
+            getAuth, 
+            onAuthStateChanged,
+            signInWithCustomToken,
+            signInWithEmailAndPassword,
+            createUserWithEmailAndPassword,
+            GoogleAuthProvider,
+            signInWithPopup,
+            signOut 
+        } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, addDoc, collection, query, onSnapshot, orderBy, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+              apiKey: "AIzaSyB5vAIS-7X3_qHZT1EJuCuNy6uXcFM5PSM",
+  authDomain: "medidor2-76fd1.firebaseapp.com",
+  projectId: "medidor2-76fd1",
+  storageBucket: "medidor2-76fd1.firebasestorage.app",
+  messagingSenderId: "6976632466",
+  appId: "1:6976632466:web:ed1f3293263b1a3720984b",
+  measurementId: "G-MEEVMD9KKN"
+        };
+        
+        const __app_id = "calculadora-consumo-app";
+        const __initial_auth_token = null;
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : firebaseConfig.projectId;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db = null;
+        let auth = null;
+        let userId = null;
+        let authReady = false;
+
+        const loadingOverlay = document.getElementById('loading');
+        const userNameDisplay = document.getElementById('userNameDisplay');
+        const consumptionForm = document.getElementById('consumptionForm');
+        const addSubmeterBtn = document.getElementById('addSubmeterBtn');
+        const principalMeterInput = document.getElementById('principalMeter');
+        const costPerKwhInput = document.getElementById('costPerKwh');
+        const totalBillKwhInput = document.getElementById('totalBillKwh');
+        const totalBillCostInput = document.getElementById('totalBillCost');
+        const submeterContainer = document.getElementById('submeterContainer');
+        const viewHistoryBtn = document.getElementById('viewHistoryBtn');
+        const exportCsvBtn = document.getElementById('exportCsvBtn');
+        const backToFormBtn = document.getElementById('backToFormBtn');
+        const historyList = document.getElementById('historyList');
+        const lastReadingDisplay = document.getElementById('lastReadingDisplay');
+
+        const principalMonthlyConsumptionDisplay = document.getElementById('principalMonthlyConsumption');
+        const principalTotalCostDisplay = document.getElementById('principalTotalCost');
+        const totalSubmetersDisplay = document.getElementById('totalSubmeters');
+        const totalSubmetersCostDisplay = document.getElementById('totalSubmetersCost');
+        const totalDifferenceKwhDisplay = document.getElementById('totalDifferenceKwh');
+        const totalDifferenceCostDisplay = document.getElementById('totalDifferenceCost');
+        const additionalCostPerMeterDisplay = document.getElementById('additionalCostPerMeter');
+        const submeterCostContainer = document.getElementById('submeterCostContainer');
+        
+        const authView = document.getElementById('authView');
+        const mainApp = document.getElementById('mainApp');
+        const authMessage = document.getElementById('authMessage');
+        const signOutBtn = document.getElementById('signOutBtn');
+        
+        const selectionSection = document.getElementById('selection-section');
+        const existingForm = document.getElementById('existing-form');
+        const newForm = document.getElementById('new-form');
+        const existingBtn = document.getElementById('existing-btn');
+        const newBtn = document.getElementById('new-btn');
+        const backBtn1 = document.getElementById('back-to-selection-1');
+        const backBtn2 = document.getElementById('back-to-selection-2');
+        const googleSignInBtn = document.getElementById('googleSignInBtn');
+        const existingAccountForm = document.getElementById('existing-account-form');
+        const newAccountForm = document.getElementById('new-account-form');
+        
+        const customAlertModal = document.getElementById('custom-alert-modal');
+        const alertTitle = document.getElementById('alert-title');
+        const alertMessage = document.getElementById('alert-message');
+        const alertOkBtn = document.getElementById('alert-ok-btn');
+
+        let lastPrincipalReading = null;
+        let allReadings = [];
+        
+        const submetersData = {
+            "Rolando": 44432,
+            "Ximena": 4181,
+            "Alberto": 16900,
+            "Patricio": 12117,
+            "Olga": 13915,
+            "Daniel": 18197,
+            "Victor": 17873,
+            "Agusto": 15830
+        };
+
+        let submeters = Object.entries(submetersData).map(([name, reading]) => ({ name, reading }));
+        
+        function showAlert(title, message) {
+            alertTitle.textContent = title;
+            alertMessage.textContent = message;
+            customAlertModal.classList.remove('hidden');
+        }
+
+        alertOkBtn.addEventListener('click', () => {
+            customAlertModal.classList.add('hidden');
+        });
+
+        function showLoading(show) {
+            loadingOverlay.classList.toggle('hidden', !show);
+        }
+
+        function showSelection() {
+            selectionSection.style.display = 'block';
+            existingForm.style.display = 'none';
+            newForm.style.display = 'none';
+        }
+
+        function renderSubmeters() {
+            submeterContainer.innerHTML = '';
+            submeters.forEach((sub, index) => {
+                const submeterDiv = document.createElement('div');
+                submeterDiv.className = 'input-group relative';
+                submeterDiv.innerHTML = `
+                    <label for="submeter${index}">${sub.name} (kWh)</label>
+                    <input type="number" id="submeter${index}" name="${sub.name}" step="0.01" value="${sub.reading}" class="submeter-input focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50 rounded-md shadow-sm border-gray-300" required>
+                    <button type="button" class="edit-submeter-btn absolute top-0 right-8 text-indigo-500 hover:text-indigo-700" data-index="${index}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zm-1.828 4.656a2 2 0 01-2.828-2.828l7.636-7.636 2.828 2.828-7.636 7.636z"/>
+                        </svg>
+                    </button>
+                    <button type="button" class="remove-submeter-btn absolute top-0 right-0 text-red-500 hover:text-red-700" data-index="${index}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                        </svg>
+                    </button>
+                `;
+                submeterContainer.appendChild(submeterDiv);
+            });
+            setupSubmeterListeners();
+        }
+
+        function setupSubmeterListeners() {
+            const currentSubmeterInputs = document.querySelectorAll('.submeter-input');
+            currentSubmeterInputs.forEach(input => {
+                input.addEventListener('input', calculateAndDisplay);
+            });
+            document.querySelectorAll('.remove-submeter-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const index = e.currentTarget.dataset.index;
+                    submeters.splice(index, 1);
+                    renderSubmeters();
+                });
+            });
+            document.querySelectorAll('.edit-submeter-btn').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const newName = prompt("Editar nombre del submedidor:", submeters[e.currentTarget.dataset.index].name);
+                    if (newName && newName.trim() !== "") {
+                        submeters[e.currentTarget.dataset.index].name = newName.trim();
+                        renderSubmeters();
+                    }
+                });
+            });
+            principalMeterInput.addEventListener('input', calculateAndDisplay);
+            costPerKwhInput.addEventListener('input', calculateAndDisplay);
+            totalBillKwhInput.addEventListener('input', updateCostAndRecalculate);
+            totalBillCostInput.addEventListener('input', updateCostAndRecalculate);
+        }
+
+        function updateCostAndRecalculate() {
+            const totalKwh = parseFloat(totalBillKwhInput.value) || 0;
+            const totalCost = parseFloat(totalBillCostInput.value) || 0;
+            if (totalKwh > 0) {
+                const calculatedCostPerKwh = totalCost / totalKwh;
+                costPerKwhInput.value = Math.round(calculatedCostPerKwh);
+            }
+            calculateAndDisplay();
+        }
+        
+        function calculateAndDisplay() {
+            const principalMeterValue = parseFloat(principalMeterInput.value) || 0;
+            const costPerKwh = parseFloat(costPerKwhInput.value) || 0;
+            const totalBillKwh = parseFloat(totalBillKwhInput.value) || 0;
+            const totalBillCost = parseFloat(totalBillCostInput.value) || 0;
+
+            const principalMonthlyConsumption = lastPrincipalReading !== null ? principalMeterValue - lastPrincipalReading : 0;
+            const principalTotalCost = principalMonthlyConsumption * costPerKwh;
+
+            const submeterInputs = document.querySelectorAll('.submeter-input');
+            let totalSubmetersValue = 0;
+            const submeterCount = submeterInputs.length;
+            
+            submeterInputs.forEach(input => {
+                totalSubmetersValue += parseFloat(input.value) || 0;
+            });
+            
+            const totalSubmetersCost = totalSubmetersValue * costPerKwh;
+
+            const baseConsumption = totalSubmetersValue;
+            const totalDifferenceKwh = totalBillKwh - baseConsumption;
+            const totalDifferenceCost = totalBillCost - (baseConsumption * costPerKwh);
+            
+            const additionalCostPerMeter = submeterCount > 0 ? totalDifferenceCost / submeterCount : 0;
+            
+            principalMonthlyConsumptionDisplay.textContent = `${principalMonthlyConsumption.toFixed(2)} kWh`;
+            principalTotalCostDisplay.textContent = `$${principalTotalCost.toFixed(2)}`;
+            totalSubmetersDisplay.textContent = `${totalSubmetersValue.toFixed(2)} kWh`;
+            totalSubmetersCostDisplay.textContent = `$${totalSubmetersCost.toFixed(2)}`;
+            totalDifferenceKwhDisplay.textContent = `${totalDifferenceKwh.toFixed(2)} kWh`;
+            totalDifferenceCostDisplay.textContent = `$${totalDifferenceCost.toFixed(2)}`;
+            additionalCostPerMeterDisplay.textContent = `$${additionalCostPerMeter.toFixed(2)}`;
+            
+            submeterCostContainer.innerHTML = '';
+            submeters.forEach((sub) => {
+                const input = document.querySelector(`input[name="${sub.name}"]`);
+                if (input) {
+                    const consumption = parseFloat(input.value) || 0;
+                    const estimatedCost = consumption * costPerKwh;
+                    const finalCost = estimatedCost + additionalCostPerMeter;
+
+                    const detailDiv = document.createElement('div');
+                    detailDiv.className = 'bg-white rounded-lg p-4 shadow-sm';
+                    detailDiv.innerHTML = `
+                        <h4 class="font-semibold text-gray-700">${sub.name}</h4>
+                        <p class="text-sm text-gray-600 mt-1">Consumo: <span class="font-bold">${consumption.toFixed(2)} kWh</span></p>
+                        <p class="text-sm text-gray-600 mt-1">Costo Estimado: <span class="font-bold text-green-600">$${estimatedCost.toFixed(2)}</span></p>
+                        <p class="text-sm text-gray-600 mt-1 font-bold">Costo Total Final: <span class="font-bold text-indigo-600">$${finalCost.toFixed(2)}</span></p>
+                    `;
+                    submeterCostContainer.appendChild(detailDiv);
+                }
+            });
+        }
+        
+        function getConsumptionsCollection() {
+            if (!db || !userId) {
+                console.error("Firestore no está inicializado o el userId no está disponible.");
+                return null;
+            }
+            return collection(db, `artifacts/${appId}/users/${userId}/consumptions`);
+        }
+        
+        async function fetchLastReading() {
+            const consumptionsCol = getConsumptionsCollection();
+            if (!consumptionsCol) return;
+            
+            showLoading(true);
+            try {
+                const q = query(consumptionsCol, orderBy("date", "desc"));
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    const data = snapshot.docs.map(doc => doc.data());
+                    if (data.length > 0) {
+                        lastPrincipalReading = data[0].principalMeter;
+                        lastReadingDisplay.textContent = `${lastPrincipalReading.toFixed(2)} kWh`;
+                    } else {
+                        lastPrincipalReading = 4950;
+                        lastReadingDisplay.textContent = `${lastPrincipalReading.toFixed(2)} kWh (Lectura Inicial)`;
+                    }
+                    calculateAndDisplay();
+                    unsubscribe();
+                    showLoading(false);
+                }, (error) => {
+                    console.error("Error al obtener la última lectura:", error);
+                    showLoading(false);
+                });
+            } catch (error) {
+                console.error("Error al obtener la última lectura:", error);
+                showLoading(false);
+            }
+        }
+        
+        async function fetchHistory() {
+            const consumptionsCol = getConsumptionsCollection();
+            if (!consumptionsCol) return;
+
+            showLoading(true);
+            try {
+                const q = query(consumptionsCol, orderBy("date", "desc"));
+                const unsubscribe = onSnapshot(q, (snapshot) => {
+                    allReadings = snapshot.docs.map(doc => doc.data());
+                    renderHistory();
+                    unsubscribe(); 
+                    showLoading(false);
+                }, (error) => {
+                    console.error("Error al obtener el historial:", error);
+                    showLoading(false);
+                });
+            } catch (error) {
+                console.error("Error al obtener el historial:", error);
+                showLoading(false);
+            }
+        }
+
+        async function saveReading() {
+            const formData = new FormData(consumptionForm);
+            const date = formData.get('meterDate');
+            const principalMeter = parseFloat(formData.get('principalMeter'));
+            const costPerKwh = parseFloat(formData.get('costPerKwh'));
+            const totalBillKwh = parseFloat(formData.get('totalBillKwh'));
+            const totalBillCost = parseFloat(formData.get('totalBillCost'));
+
+            const submetersData = {};
+            document.querySelectorAll('.submeter-input').forEach(input => {
+                submetersData[input.name] = parseFloat(input.value) || 0;
+            });
+
+            const dataToSave = {
+                date,
+                principalMeter,
+                costPerKwh,
+                totalBillKwh,
+                totalBillCost,
+                submeters: submetersData,
+            };
+
+            const consumptionsCol = getConsumptionsCollection();
+            if (!consumptionsCol) return;
+
+            showLoading(true);
+            try {
+                await addDoc(consumptionsCol, dataToSave);
+            } catch (error) {
+                console.error("Error al guardar lecturas:", error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function renderHistory() {
+            historyList.innerHTML = '';
+            if (allReadings.length === 0) {
+                historyList.innerHTML = '<p class="text-center text-gray-500">No hay datos históricos para mostrar.</p>';
+                return;
+            }
+
+            const sortedReadings = allReadings.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            sortedReadings.forEach((reading, index) => {
+                const card = document.createElement('div');
+                card.className = 'card bg-white p-4 rounded-lg shadow-md';
+                
+                const lastPrincipalReadingForCalculation = index < sortedReadings.length - 1 ? sortedReadings[index + 1].principalMeter : 4950;
+                const totalConsumption = reading.principalMeter - lastPrincipalReadingForCalculation;
+                const totalCost = totalConsumption * reading.costPerKwh;
+                
+                let submeterDetails = '';
+                if (reading.submeters) {
+                    const sortedSubmeters = Object.keys(reading.submeters).sort();
+                    sortedSubmeters.forEach(name => {
+                         const consumption = reading.submeters[name];
+                         submeterDetails += `<p class="text-sm text-gray-600">- <strong>${name}</strong>: ${consumption.toFixed(2)} kWh</p>`;
+                    });
+                }
+                
+                card.innerHTML = `
+                    <h3 class="font-semibold text-gray-700 text-lg mb-2">Lectura del ${reading.date}</h3>
+                    <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div><span class="font-medium text-gray-800">Lectura Medidor Principal:</span></div>
+                        <div>${reading.principalMeter.toFixed(2)} kWh</div>
+                        <div><span class="font-medium text-gray-800">Consumo Total del Mes:</span></div>
+                        <div>${totalConsumption.toFixed(2)} kWh</div>
+                        <div><span class="font-medium text-gray-800">Costo Estimado:</span></div>
+                        <div>$${totalCost.toFixed(2)}</div>
+                        <div><span class="font-medium text-gray-800">Boleta kWh:</span></div>
+                        <div>${reading.totalBillKwh ? reading.totalBillKwh.toFixed(2) + ' kWh' : 'N/A'}</div>
+                        <div><span class="font-medium text-gray-800">Boleta Costo:</span></div>
+                        <div>${reading.totalBillCost ? '$' + reading.totalBillCost.toFixed(2) : 'N/A'}</div>
+                    </div>
+                    <h4 class="font-semibold text-gray-700 mt-4 mb-2">Consumo de Submedidores:</h4>
+                    <div class="space-y-1">
+                        ${submeterDetails}
+                    </div>
+                `;
+                historyList.appendChild(card);
+            });
+        }
+        
+        async function exportToCsv() {
+            if (!db || !userId) {
+                console.error("Firestore no está inicializado o el userId no está disponible.");
+                return;
+            }
+
+            showLoading(true);
+
+            try {
+                const consumptionsColRef = getConsumptionsCollection();
+                if (!consumptionsColRef) return;
+                
+                const q = query(consumptionsColRef, orderBy("date", "desc"));
+                const querySnapshot = await getDocs(q);
+
+                if (querySnapshot.empty) {
+                    console.warn("No hay datos para exportar.");
+                    showLoading(false);
+                    return;
+                }
+
+                const allSubmeterNames = new Set();
+                const data = [];
+                querySnapshot.forEach(doc => {
+                    const docData = doc.data();
+                    data.push(docData);
+                    if (docData.submeters) {
+                        Object.keys(docData.submeters).forEach(name => allSubmeterNames.add(name));
+                    }
+                });
+                
+                const sortedSubmeterNames = Array.from(allSubmeterNames).sort();
+
+                const submeterKwhHeaders = sortedSubmeterNames.map(name => `total_kw_${name}`);
+                const submeterCostHeaders = sortedSubmeterNames.map(name => `total_dinero_${name}`);
+
+                const header = [
+                    "fecha",
+                    "valor_boleta",
+                    "total_kw_boleta",
+                    "valor_kw",
+                    "total_kw_submedidores",
+                    "diferencia_kw_boleta-submedidores",
+                    "diferencia_costo_boleta-calculado",
+                    ...submeterKwhHeaders,
+                    ...submeterCostHeaders
+                ];
+                const rows = [header.join(',')];
+
+                data.forEach((item, index) => {
+                    const lastReadingForCalculation = index < data.length - 1 ? data[index + 1].principalMeter : 4950;
+                    const principalMonthlyConsumption = item.principalMeter - lastReadingForCalculation;
+
+                    let totalSubmetersValue = 0;
+                    if (item.submeters) {
+                        Object.values(item.submeters).forEach(value => {
+                            totalSubmetersValue += value;
+                        });
+                    }
+
+                    const baseConsumption = totalSubmetersValue;
+                    const totalDifferenceKwh = item.totalBillKwh - baseConsumption;
+                    const totalDifferenceCost = item.totalBillCost - (baseConsumption * item.costPerKwh);
+                    
+                    const submeterCount = sortedSubmeterNames.length;
+                    const additionalCostPerMeter = submeterCount > 0 ? totalDifferenceCost / submeterCount : 0;
+
+                    const rowData = [
+                        `"${item.date}"`,
+                        item.totalBillCost,
+                        item.totalBillKwh,
+                        item.costPerKwh,
+                        totalSubmetersValue.toFixed(2),
+                        totalDifferenceKwh.toFixed(2),
+                        totalDifferenceCost.toFixed(2)
+                    ];
+
+                    sortedSubmeterNames.forEach(name => {
+                        const submeterValue = item.submeters?.[name] || 0;
+                        rowData.push(submeterValue.toFixed(2));
+                    });
+                    
+                    sortedSubmeterNames.forEach(name => {
+                        const submeterValue = item.submeters?.[name] || 0;
+                        const estimatedCost = submeterValue * item.costPerKwh;
+                        const finalCost = estimatedCost + additionalCostPerMeter;
+                        rowData.push(finalCost.toFixed(2));
+                    });
+
+                    rows.push(rowData.join(','));
+                });
+
+                const csvString = rows.join('\n');
+                const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement("a");
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", `consumo_electrico_${new Date().toISOString().slice(0, 10)}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+            } catch (error) {
+                console.error("Error al exportar los datos:", error);
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        existingBtn.addEventListener('click', () => {
+            showSelection(false);
+            existingForm.style.display = 'block';
+        });
+
+        newBtn.addEventListener('click', () => {
+            showSelection(false);
+            newForm.style.display = 'block';
+        });
+
+        backBtn1.addEventListener('click', showSelection);
+        backBtn2.addEventListener('click', showSelection);
+
+        consumptionForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            saveReading();
+        });
+
+        addSubmeterBtn.addEventListener('click', () => {
+            const newName = prompt("Ingresa el nombre del nuevo submedidor:");
+            if (newName && newName.trim() !== "") {
+                submeters.push({ name: newName.trim(), reading: 0 });
+                renderSubmeters();
+            }
+        });
+        
+        viewHistoryBtn.addEventListener('click', () => {
+            document.getElementById('mainFormView').classList.add('hidden');
+            document.getElementById('resultsView').classList.add('hidden');
+            document.getElementById('historyView').classList.remove('hidden');
+            fetchHistory();
+        });
+        
+        exportCsvBtn.addEventListener('click', exportToCsv);
+        
+        backToFormBtn.addEventListener('click', () => {
+            document.getElementById('historyView').classList.add('hidden');
+            document.getElementById('mainFormView').classList.remove('hidden');
+            document.getElementById('resultsView').classList.remove('hidden');
+        });
+        
+        googleSignInBtn.addEventListener('click', async () => {
+            showLoading(true);
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    const provider = new GoogleAuthProvider();
+                    await signInWithPopup(auth, provider);
+                }
+            } catch (error) {
+                authMessage.textContent = `Error de inicio de sesión: ${error.message}`;
+                authMessage.classList.remove('hidden');
+                console.error("Error al iniciar sesión con token o Google:", error);
+                
+                // Muestra un modal de error amigable para el usuario
+                if (error.code === 'auth/unauthorized-domain') {
+                    const currentDomain = window.location.hostname;
+                    showAlert(
+                        "Error de autenticación",
+                        `El dominio actual (${currentDomain}) no está autorizado. Por favor, agregue este dominio a su consola de Firebase en Autenticación > Configuración > Dominios autorizados.`
+                    );
+                } else {
+                    showAlert(
+                        "Error de autenticación",
+                        error.message
+                    );
+                }
+
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        existingAccountForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('existing-email').value;
+            const password = document.getElementById('existing-password').value;
+            showLoading(true);
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                authMessage.textContent = `Error al iniciar sesión: ${error.message}`;
+                authMessage.classList.remove('hidden');
+                console.error("Error al iniciar sesión con email:", error);
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        newAccountForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('new-email').value;
+            const password = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            if (password !== confirmPassword) {
+                authMessage.textContent = "Las contraseñas no coinciden.";
+                authMessage.classList.remove('hidden');
+                return;
+            }
+            showLoading(true);
+            try {
+                await createUserWithEmailAndPassword(auth, email, password);
+            } catch (error) {
+                authMessage.textContent = `Error al crear cuenta: ${error.message}`;
+                authMessage.classList.remove('hidden');
+                console.error("Error al crear cuenta:", error);
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        signOutBtn.addEventListener('click', async () => {
+            showLoading(true);
+            try {
+                await signOut(auth);
+            } catch (error) {
+                console.error("Error al cerrar sesión:", error);
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        function initializeFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length === 0) {
+                    console.error("Error: La configuración de Firebase está vacía. Por favor, asegúrate de reemplazar el objeto `firebaseConfig` con la configuración de tu proyecto.");
+                    userNameDisplay.textContent = "Error de configuración";
+                    showLoading(false);
+                    return;
+                }
+
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                setLogLevel('Debug');
+                
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        const displayName = user.displayName || user.email || 'Anónimo';
+                        userNameDisplay.textContent = displayName;
+                        signOutBtn.classList.remove('hidden');
+                        authReady = true;
+                        authView.classList.add('hidden');
+                        mainApp.classList.remove('hidden');
+                        fetchLastReading();
+                        renderSubmeters();
+                        document.getElementById('meterDate').valueAsDate = new Date();
+                        document.getElementById('principalMeter').value = 4950;
+                    } else {
+                       userId = null;
+                       authReady = false;
+                       userNameDisplay.textContent = "No autenticado";
+                       signOutBtn.classList.add('hidden');
+                       authView.classList.remove('hidden');
+                       mainApp.classList.add('hidden');
+                       showSelection();
+                    }
+                    showLoading(false);
+                });
+            } catch (error) {
+                console.error("Error en la inicialización de Firebase:", error);
+                userNameDisplay.textContent = "Error de inicialización";
+                showLoading(false);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+             showLoading(true);
+             initializeFirebase();
+        });
+    </script>
+</body>
+</html>
